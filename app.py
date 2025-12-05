@@ -1,5 +1,7 @@
 import streamlit as st
-from agent import agent_executor # We import the brain you just built!
+from agent import agent_executor
+from memory import save_to_memory, search_memory # <--- Added search_memory
+from langchain_groq import ChatGroq # We need an LLM to answer chat questions
 
 st.set_page_config(page_title="Competitor Spy", page_icon="🕵️‍♂️")
 
@@ -42,14 +44,18 @@ if st.button("🚀 INFILTRATE & ANALYZE"):
             4. Summarize their top 3 selling points in a bulleted list.
             """
             
-            # 2. Run the Agent (and update status)
+            # 2. Run the Agent
             status_box.write("🔍 Searching for target...")
-            
-            # LangGraph returns a dictionary of messages. We want the last one.
             response = agent_executor.invoke({"messages": [("user", query)]})
             final_answer = response["messages"][-1].content
             
-            status_box.update(label="✅ Mission Complete", state="complete", expanded=False)
+            # --- NEW: Save to Memory ---
+            status_box.write("💾 Saving report to database...")
+            save_to_memory(target_url, final_answer)
+            # ---------------------------
+            
+            # Update status to success
+            status_box.update(label="✅ Mission Complete & Saved", state="complete", expanded=False)
             
             # 3. Display Result
             st.subheader("📂 Mission Report")
@@ -58,3 +64,36 @@ if st.button("🚀 INFILTRATE & ANALYZE"):
         except Exception as e:
             status_box.update(label="❌ Mission Failed", state="error")
             st.error(f"Error: {str(e)}")
+            
+# --- NEW SIDEBAR: Chat with Memory ---
+st.sidebar.title("🧠 Group Intelligence")
+st.sidebar.info("Ask questions about any company we have ever spied on.")
+
+# 1. Chat Input
+user_question = st.sidebar.text_area("Ask a question about saved competitors:", height=100)
+
+if st.sidebar.button("Ask Memory"):
+    if user_question:
+        with st.sidebar.status("Thinking..."):
+            # A. Retrieve relevant past reports from Pinecone
+            context = search_memory(user_question)
+            
+            # B. Send to LLM to summarize
+            # We use a simple direct call to the LLM here
+            llm = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile")
+            
+            prompt = f"""
+            Based ONLY on the following context from our database, answer the user's question.
+            
+            CONTEXT:
+            {context}
+            
+            USER QUESTION:
+            {user_question}
+            """
+            
+            answer = llm.invoke(prompt).content
+            
+        # C. Show Answer
+        st.sidebar.markdown("### 💡 Answer")
+        st.sidebar.markdown(answer)

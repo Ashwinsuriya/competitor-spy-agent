@@ -6,6 +6,7 @@ from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
+from memory import save_to_memory
 
 # 1. Load Secrets
 load_dotenv()
@@ -65,9 +66,15 @@ if __name__ == "__main__":
     4. Summarize their top 3 selling points in a bulleted list.
     """
     
-    # LangGraph expects a list of messages
+    # Run the agent
     events = agent_executor.invoke({"messages": [("user", query)]})
+    final_answer = events["messages"][-1].content
     
-    # The last message in the list is the AI's final answer
     print("\n--- MISSION REPORT ---")
-    print(events["messages"][-1].content)
+    print(final_answer)
+
+    # --- NEW MEMORY BLOCK (ADD THIS) ---
+    print("\n💾 Saving to Long-Term Memory...")
+    save_to_memory(target, final_answer)
+    print("✅ Memory Saved!")
+    # -----------------------------------
